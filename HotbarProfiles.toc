@@ -1,0 +1,15 @@
+## Interface: 80300
+## Title: HotbarProfiles
+## Author: mike
+## Version: v1.0.0
+## License: All Rights Reserved
+## Notes: Profiles for hotbar
+## Author: ITMIke
+## SavedVariables: HotbarProfilesDB
+
+## X-Localizations: enUS, enGB
+## X-CompatibleLocales: enUS, enGB
+
+embeds.xml
+
+HotbarProfiles.lua
