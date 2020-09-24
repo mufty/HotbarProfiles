@@ -20,26 +20,34 @@ local function toggleHBP()
     end
 end
 
-function HotbarPopup:createHotbarPopup()
-    self:SetTitle("HotbarProfiles")
+function HotbarProfiles:saveBars(name)
+    log(name)
 
-    self:SetCallback("OnClose", function(widget)
-        HotbarProfiles.db.profile.drop.hide = true
-        self:Hide()
-    end)
+    local list = self.db.profile.list
+    local profile = { name = name, default = false }
 
-    local saveActionBars = AceGUI:Create("Label")
-    saveActionBars:SetText("Enter name to save the current action bars")
-    self:AddChild(saveActionBars)
+    list[name] = profile
 
-    local saveABName = AceGUI:Create("EditBox")
-    saveABName:SetLabel("Name:")
-    saveABName:SetCallback("OnEnterPressed", function(widget, event, text)
-        log(text)
-    end)
-    self:AddChild(saveABName)
+    HotbarPopup:SetStatusText("Profile '" .. name .. "' saved");
+end
 
-    local loadButton = AceGUI:Create("Button")
+function HotbarPopup:updateSavedContainer()
+    --self.savedProfilesContainer:Release()
+
+    local list = HotbarProfiles.db.profile.list
+
+    local name, profile
+    for name, profile in pairs(list) do
+        local profileLabel = AceGUI:Create("Label")
+        profileLabel:SetText(name)
+        self.savedProfilesContainer:AddChild(profileLabel)
+
+        local profileDeleteBtn = AceGUI:Create("Button")
+        profileDeleteBtn:SetText("Delete '" .. name .. "'")
+        self.savedProfilesContainer:AddChild(profileDeleteBtn)
+    end
+
+    --[[local loadButton = AceGUI:Create("Button")
     loadButton:SetText("Load")
     loadButton:SetCallback("OnClick", function()
         local slot
@@ -50,10 +58,55 @@ function HotbarPopup:createHotbarPopup()
             log(sub)
         end
     end)
-    self:AddChild(loadButton)
+
+    self.savedProfilesContainer:AddChild(loadButton)--]]
 end
 
-HotbarPopup:createHotbarPopup()
+function HotbarPopup:drawHotbarPopup()
+    local scrollContainer = AceGUI:Create("SimpleGroup")
+    scrollContainer:SetFullWidth(true)
+    scrollContainer:SetLayout("List") -- important!
+    self:AddChild(scrollContainer)
+
+    --top section frame
+
+    local mainFrame = AceGUI:Create("InlineGroup")
+    mainFrame:SetLayout("Flow")
+
+    local saveActionBars = AceGUI:Create("Label")
+    saveActionBars:SetText("Enter name to save your current setup")
+    mainFrame:AddChild(saveActionBars)
+
+    local saveABName = AceGUI:Create("EditBox")
+    saveABName:SetLabel("Name:")
+    saveABName:SetCallback("OnEnterPressed", function (widget, event, text)
+        HotbarProfiles:saveBars(text)
+    end)
+    mainFrame:AddChild(saveABName)
+
+    -- bottom part
+
+    self.savedProfilesContainer = AceGUI:Create("InlineGroup")
+    self.savedProfilesContainer:SetLayout("Flow")
+
+    self:updateSavedContainer()
+
+    scrollContainer:AddChild(mainFrame)
+    scrollContainer:AddChild(self.savedProfilesContainer)
+end
+
+function HotbarPopup:createHotbarPopup()
+    self:SetTitle("HotbarProfiles")
+
+    self:SetCallback("OnClose", function(widget)
+        HotbarProfiles.db.profile.drop.hide = true
+        self:Hide()
+    end)
+
+    self:SetLayout("Fill")
+
+    self:drawHotbarPopup()
+end
 
 log("HotbarProfiles use /hbp to enable the addon")
 
@@ -66,8 +119,6 @@ local hpLDB = LibStub("LibDataBroker-1.1"):NewDataObject("HotbarProfiles", {
         toggleHBP()
     end,
 })
-
-HotbarPopup:Hide()
 
 log("Created data object")
 
@@ -86,11 +137,16 @@ function HotbarProfiles:OnInitialize()
             drop = {
                 hide = true,
             },
+            list = {},
         },
     })
     icon:Register("HotbarProfiles", hpLDB, self.db.profile.minimap)
     self:RegisterChatCommand("hbp", "HotbarProfilesControll")
     log("Calling addon init done")
+
+    HotbarPopup:createHotbarPopup()
+
+    HotbarPopup:Hide()
 end
 
 icon:Show("HotbarProfiles")
