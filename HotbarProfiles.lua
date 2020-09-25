@@ -28,41 +28,86 @@ function HotbarProfiles:saveBars(name)
 
     list[name] = profile
 
+    HotbarPopup:updateProfileList()
+
     HotbarPopup:SetStatusText("Profile '" .. name .. "' saved");
+end
+
+function HotbarProfiles:deleteProfile(profile)
+    log(profile.name)
+
+    local list = self.db.profile.list
+
+    list[profile.name] = nil
+
+    HotbarPopup:SetStatusText("Profile '" .. profile.name .. "' deleted");
+end
+
+function HotbarPopup:getDropDownProfileList(list)
+    local name, profile
+
+    local optimizedList = {}
+
+    for name, profile in pairs(list) do
+        optimizedList[name] = name
+    end
+
+    return optimizedList
+end
+
+function HotbarPopup:selectDefaultProfile()
+    local defaultProfile = nil
+    local name, profile
+    for name, profile in pairs(HotbarProfiles.db.profile.list) do
+        if profile.default then
+            defaultProfile = name
+        end
+    end
+
+    self.profilesDropdown:SetValue(defaultProfile)
+end
+
+function HotbarPopup:updateProfileList()
+    local list = self:getDropDownProfileList(HotbarProfiles.db.profile.list)
+    self.profilesDropdown:SetList(list)
+
+    self:selectDefaultProfile()
+end
+
+function HotbarPopup:deleteProfile()
+    HotbarProfiles:deleteProfile(self.selectedProfile)
+
+    self:updateProfileList()
 end
 
 function HotbarPopup:updateSavedContainer()
     --self.savedProfilesContainer:Release()
 
-    local list = HotbarProfiles.db.profile.list
+    self.profilesDropdown = AceGUI:Create("Dropdown")
+    local list = self:getDropDownProfileList(HotbarProfiles.db.profile.list)
+    self.profilesDropdown:SetList(list)
+    self.profilesDropdown:SetCallback("OnValueChanged", function(this, event, key)
+        self.selectedProfile = HotbarProfiles.db.profile.list[key]
+    end)
+    self.savedProfilesContainer:AddChild(self.profilesDropdown)
+
+    local profileDeleteBtn = AceGUI:Create("Button")
+    profileDeleteBtn:SetText("Delete profile")
+    profileDeleteBtn:SetCallback("OnClick", function ()
+        HotbarPopup:deleteProfile()
+    end)
+    self.savedProfilesContainer:AddChild(profileDeleteBtn)
 
     local name, profile
-    for name, profile in pairs(list) do
-        local profileLabel = AceGUI:Create("Label")
-        profileLabel:SetText(name)
-        self.savedProfilesContainer:AddChild(profileLabel)
-
-        local profileDeleteBtn = AceGUI:Create("Button")
-        profileDeleteBtn:SetText("Delete '" .. name .. "'")
-        self.savedProfilesContainer:AddChild(profileDeleteBtn)
-    end
-
-    --[[local loadButton = AceGUI:Create("Button")
-    loadButton:SetText("Load")
-    loadButton:SetCallback("OnClick", function()
-        local slot
-        for slot = 1, ABP_MAX_ACTION_BUTTONS do
-            local type, id, sub = GetActionInfo(slot)
-            log(type)
-            log(id)
-            log(sub)
+    for name, profile in pairs(HotbarProfiles.db.profile.list) do
+        if profile.default then
+            self.profilesDropdown:SetValue(name)
         end
-    end)
-
-    self.savedProfilesContainer:AddChild(loadButton)--]]
+    end
 end
 
 function HotbarPopup:drawHotbarPopup()
+    self.selectedProfile = nil
     local scrollContainer = AceGUI:Create("SimpleGroup")
     scrollContainer:SetFullWidth(true)
     scrollContainer:SetLayout("List") -- important!
