@@ -1,7 +1,7 @@
 ## Interface: 80300
 ## Title: HotbarProfiles
 ## Author: mike
-## Version: v1.0.0
+## Version: v0.0.1
 ## License: All Rights Reserved
 ## Notes: Profiles for hotbar
 ## Author: ITMIke
