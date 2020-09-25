@@ -1,6 +1,8 @@
 local AceGUI = LibStub("AceGUI-3.0")
 
-ABP_MAX_ACTION_BUTTONS = 120
+HBP_MAX_ACTION_BUTTONS = 120
+HBP_EMPTY_ICON_TEXTURE_ID = 134400
+HBP_RANDOM_MOUNT_SPELL_IDHBP_RANDOM_MOUNT_SPELL_ID = 150544
 
 HotbarProfiles = LibStub("AceAddon-3.0"):NewAddon("HotbarProfiles", "AceConsole-3.0")
 
@@ -20,11 +22,160 @@ local function toggleHBP()
     end
 end
 
-function HotbarProfiles:saveBars(name)
-    log(name)
+function HotbarProfiles:encodeLink(data)
+    return data:gsub(".", function(x)
+        return ((x:byte() < 32 or x:byte() == 127 or x == "|" or x == ":" or x == "[" or x == "]" or x == "~") and string.format("~%02x", x:byte())) or x
+    end)
+end
 
+function HotbarProfiles:saveActions(profile)
+    local flyouts, tsNames, tsIds = {}, {}, {}
+
+    local book
+    for book = 1, GetNumSpellTabs() do
+        local offset, count, _, spec = select(3, GetSpellTabInfo(book))
+
+        if spec == 0 then
+            local index
+            for index = offset + 1, offset + count do
+                local type, id = GetSpellBookItemInfo(index, BOOKTYPE_SPELL)
+                local name = GetSpellBookItemName(index, BOOKTYPE_SPELL)
+
+                if type == "FLYOUT" then
+                    flyouts[id] = name
+
+                elseif type == "SPELL" and IsTalentSpell(index, BOOKTYPE_SPELL) then
+                    tsNames[name] = id
+                end
+            end
+        end
+    end
+
+    local talents = {}
+
+    local tier
+    for tier = 1, MAX_TALENT_TIERS do
+        local column = select(2, GetTalentTierInfo(tier, 1))
+        if column and column > 0 then
+            local id, name = GetTalentInfo(tier, column, 1)
+
+            if tsNames[name] then
+                tsIds[tsNames[name]] = id
+            end
+
+            talents[tier] = GetTalentLink(id)
+        end
+    end
+
+    profile.talents = talents
+
+    local actions = {}
+    local savedMacros = {}
+
+    local slot
+    for slot = 1, HBP_MAX_ACTION_BUTTONS do
+        local type, id, sub = GetActionInfo(slot)
+        if type == "spell" then
+            if tsIds[id] then
+                actions[slot] = GetTalentLink(tsIds[id])
+            else
+                actions[slot] = GetSpellLink(id)
+            end
+        elseif type == "flyout" then
+            if flyouts[id] then
+                actions[slot] = string.format(
+                        "|cffff0000|Habp:flyout:%d|h[%s]|h|r",
+                        id, flyouts[id]
+                )
+            end
+
+        elseif type == "item" then
+            actions[slot] = select(2, GetItemInfo(id))
+
+        elseif type == "companion" then
+            if sub == "MOUNT" then
+                actions[slot] = GetSpellLink(id)
+            end
+
+        elseif type == "summonpet" then
+            actions[slot] = C_PetJournal.GetBattlePetLink(id)
+
+        elseif type == "summonmount" then
+            if id == 0xFFFFFFF then
+                actions[slot] = GetSpellLink(HBP_RANDOM_MOUNT_SPELL_ID)
+            else
+                actions[slot] = GetSpellLink(({ C_MountJournal.GetMountInfoByID(id) })[2])
+            end
+
+        elseif type == "macro" then
+            if id > 0 then
+                local name, icon, body = GetMacroInfo(id)
+
+                icon = icon or HBP_EMPTY_ICON_TEXTURE_ID
+
+                if id > MAX_ACCOUNT_MACROS then
+                    actions[slot] = string.format(
+                            "|cffff0000|Habp:macro:%s:%s|h[%s]|h|r",
+                            icon, self:encodeLink(body), name
+                    )
+                else
+                    actions[slot] = string.format(
+                            "|cffff0000|Habp:macro:%s:%s:1|h[%s]|h|r",
+                            icon, self:encodeLink(body), name
+                    )
+                end
+
+                savedMacros[id] = true
+            end
+
+        elseif type == "equipmentset" then
+            actions[slot] = string.format(
+                    "|cffff0000|Habp:equip|h[%s]|h|r",
+                    id
+            )
+        end
+    end
+
+    profile.actions = actions
+
+    local macros = {}
+    local allMacros, charMacros = GetNumMacros()
+
+    local index
+    for index = 1, allMacros do
+        local name, icon, body = GetMacroInfo(index)
+
+        icon = icon or HBP_EMPTY_ICON_TEXTURE_ID
+
+        if body and not savedMacros[index] then
+            table.insert(macros, string.format(
+                    "|cffff0000|Habp:macro:%s:%s:1|h[%s]|h|r",
+                    icon, self:encodeLink(body), name
+            ))
+        end
+    end
+
+    for index = MAX_ACCOUNT_MACROS + 1, MAX_ACCOUNT_MACROS + charMacros do
+        local name, icon, body = GetMacroInfo(index)
+
+        icon = icon or HBP_EMPTY_ICON_TEXTURE_ID
+
+        if body and not savedMacros[index] then
+            table.insert(macros, string.format(
+                    "|cffff0000|Habp:macro:%s:%s|h[%s]|h|r",
+                    icon, self:encodeLink(body), name
+            ))
+        end
+    end
+
+    profile.macros = macros
+end
+
+function HotbarProfiles:saveBars(name)
     local list = self.db.profile.list
     local profile = { name = name, default = false }
+
+    self:saveActions(profile)
 
     list[name] = profile
 
@@ -34,8 +185,6 @@ function HotbarProfiles:saveBars(name)
 end
 
 function HotbarProfiles:deleteProfile(profile)
-    log(profile.name)
-
     local list = self.db.profile.list
 
     list[profile.name] = nil
