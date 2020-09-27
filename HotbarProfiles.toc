@@ -1,9 +1,9 @@
 ## Interface: 80300
 ## Title: HotbarProfiles
 ## Author: mike
-## Version: v0.0.1
+## Version: v0.0.2
 ## License: All Rights Reserved
-## Notes: Profiles for hotbar
+## Notes: Profiles for action bar
 ## Author: ITMIke
 ## SavedVariables: HotbarProfilesDB
 
@@ -12,4 +12,5 @@
 
 embeds.xml
 
+Consts.lua
 HotbarProfiles.lua
