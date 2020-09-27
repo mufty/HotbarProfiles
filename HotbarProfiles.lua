@@ -376,14 +376,9 @@ local hpLDB = LibStub("LibDataBroker-1.1"):NewDataObject("HotbarProfiles", {
     end,
 })
 
-log("Created data object")
-
 local icon = LibStub("LibDBIcon-1.0")
 
-log("Created data icon")
-
 function HotbarProfiles:OnInitialize()
-    log("Calling addon init")
     -- Obviously you'll need a ## SavedVariables: HotbarProfilesDB line in your TOC, duh!
     self.db = LibStub("AceDB-3.0"):New("HotbarProfilesDB", {
         profile = {
@@ -408,7 +403,6 @@ end
 icon:Show("HotbarProfiles")
 
 function HotbarProfiles:HotbarProfilesControll()
-    log("Calling addon /hbp callback")
     toggleHBP()
 end
 
@@ -449,7 +443,6 @@ function HotbarProfiles:GetProfiles(filter, case)
 end
 
 function HotbarProfiles:UseProfile(profile, check, cache)
-    log("1")
     if type(profile) ~= "table" then
         local list = self.db.profile.list
         profile = list[profile]
@@ -459,8 +452,6 @@ function HotbarProfiles:UseProfile(profile, check, cache)
         end
     end
 
-    log("2")
-
     cache = cache or self:MakeCache()
 
     local macros = cache.macros
@@ -468,37 +459,25 @@ function HotbarProfiles:UseProfile(profile, check, cache)
 
     local res = { fail = 0, total = 0 }
 
-    log("3")
-
     if not profile.skipMacros then
         self:RestoreMacros(profile, check, cache, res)
     end
-
-    log("4")
 
     --if not profile.skipTalents then
         --self:RestoreTalents(profile, check, cache, res)
     --end
 
-    log("5")
-
     if not profile.skipActions then
         self:RestoreActions(profile, check, cache, res)
     end
-
-    log("6")
 
     if not profile.skipPetActions then
         self:RestorePetActions(profile, check, cache, res)
     end
 
-    log("7")
-
     --if not profile.skipBindings then
         --self:RestoreBindings(profile, check, cache, res)
     --end
-
-    log("8")
 
     cache.macros = macros
     cache.talents = talents
@@ -1086,38 +1065,25 @@ function HotbarProfiles:MakeCache()
         petSpells = { id = {}, name = {} },
     }
 
-    log("a1")
     self:PreloadTalents(cache.talents, cache.allTalents)
-    log("a2")
     self:PreloadSpecialSpells(cache.spells)
-    log("a3")
     self:PreloadSpellbook(cache.spells, cache.flyouts)
-    log("a4")
     self:PreloadMountjournal(cache.spells)
-    log("a5")
     self:PreloadCombatAllySpells(cache.spells)
-    log("a6")
     self:PreloadEquip(cache.equip)
-    log("a7")
     self:PreloadBags(cache.bags)
-    log("a8")
     self:PreloadPetJournal(cache.pets)
-    log("a9")
     self:PreloadMacros(cache.macros)
-    log("a10")
     self:PreloadPetSpells(cache.petSpells)
-    log("a11")
     return cache
 end
 
 function HotbarProfiles:PreloadSpecialSpells(spells)
-    log("b1")
     local level = UnitLevel("player")
     local class = select(2, UnitClass("player"))
     local faction = UnitFactionGroup("player")
     local spec = GetSpecializationInfo(GetSpecialization())
 
-    log("b2")
     local id, info
     for id, info in pairs(HBP_SPECIAL_SPELLS) do
         if (not info.level or level >= info.level) and
@@ -1125,18 +1091,12 @@ function HotbarProfiles:PreloadSpecialSpells(spells)
                 (not info.faction or faction == info.faction) and
                 (not info.spec or spec == info.spec)
         then
-            log("b4")
             self:UpdateCache(spells, id, id)
-            log("b5")
             if info.altSpellIds then
-                log("b6")
                 local idx, alt
                 for idx, alt in pairs(info.altSpellIds) do
-                    log("b61")
                     self:UpdateCache(spells, id, alt)
-                    log("b62")
                 end
-                log("b7")
             end
         end
     end
@@ -1144,7 +1104,6 @@ end
 
 function HotbarProfiles:PreloadSpellbook(spells, flyouts)
     local tabs = {}
-
     local book
     for book = 1, GetNumSpellTabs() do
         local offset, count, _, spec = select(3, GetSpellTabInfo(book))
@@ -1154,17 +1113,16 @@ function HotbarProfiles:PreloadSpellbook(spells, flyouts)
         end
     end
 
-    local idx, prof
-    for prof in pairs({ GetProfessions() }) do
+    local prof
+    for prof in table.s2k_values({ GetProfessions() }) do
         if prof then
             local count, offset = select(5, GetProfessionInfo(prof))
 
             table.insert(tabs, { type = BOOKTYPE_PROFESSION, offset = offset, count = count })
         end
     end
-
     local tab
-    for idx, tab in pairs(tabs) do
+    for tab in table.s2k_values(tabs) do
         local index
         for index = tab.offset + 1, tab.offset + tab.count do
             local type, id = GetSpellBookItemInfo(index, tab.type)
@@ -1251,9 +1209,7 @@ function HotbarProfiles:PreloadBags(bags)
 end
 
 function HotbarProfiles:PreloadPetJournal(pets)
-    log("c1")
     local saved = self:SavePetJournalFilters()
-    log("c2")
 
     C_PetJournal.ClearSearchFilter()
 
@@ -1263,17 +1219,13 @@ function HotbarProfiles:PreloadPetJournal(pets)
     C_PetJournal.SetAllPetSourcesChecked(true)
     C_PetJournal.SetAllPetTypesChecked(true)
 
-    log("c3")
     local index
     for index = 1, C_PetJournal:GetNumPets() do
-        --log("c4")
         local id, species = C_PetJournal.GetPetInfoByIndex(index)
         self:UpdateCache(pets, id, id, species)
     end
 
-    log("c5")
     self:RestorePetJournalFilters(saved)
-    log("c6")
 end
 
 function HotbarProfiles:PackMacro(macro)
