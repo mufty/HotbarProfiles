@@ -1,0 +1,18 @@
+tag 3f6f895e8798375a8c3989e0a828a3c7f68fed08 8.2.0
+Author:	Silencer <silencer2k@gmail.com>
+Date:	Sat Jul 6 19:31:17 2019 +0300
+
+8.2.0
+
+commit 8774d96a49fc4ed1043611f1c54687989280c072
+Author: Silencer <silencer2k@gmail.com>
+Date:   Sat Jul 6 19:27:13 2019 +0300
+
+    8.2.0
+
+commit 43472395aebb1db1da13b669b6f20d1222e66815
+Author: Silencer <silencer2k@gmail.com>
+Date:   Sat Jul 6 19:00:48 2019 +0300
+
+    change version
+
