@@ -14,3 +14,5 @@ embeds.xml
 
 Consts.lua
 HotbarProfiles.lua
+ParsingModule.lua
+StorageModule.lua

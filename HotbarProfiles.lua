@@ -23,160 +23,11 @@ local function toggleHBP()
     end
 end
 
-function HotbarProfiles:encodeLink(data)
-    return data:gsub(".", function(x)
-        return ((x:byte() < 32 or x:byte() == 127 or x == "|" or x == ":" or x == "[" or x == "]" or x == "~") and string.format("~%02x", x:byte())) or x
-    end)
-end
-
-function HotbarProfiles:saveActions(profile)
-    local flyouts, tsNames, tsIds = {}, {}, {}
-
-    local book
-    for book = 1, GetNumSpellTabs() do
-        local offset, count, _, spec = select(3, GetSpellTabInfo(book))
-
-        if spec == 0 then
-            local index
-            for index = offset + 1, offset + count do
-                local type, id = GetSpellBookItemInfo(index, BOOKTYPE_SPELL)
-                local name = GetSpellBookItemName(index, BOOKTYPE_SPELL)
-
-                if type == "FLYOUT" then
-                    flyouts[id] = name
-
-                elseif type == "SPELL" and IsTalentSpell(index, BOOKTYPE_SPELL) then
-                    tsNames[name] = id
-                end
-            end
-        end
-    end
-
-    local talents = {}
-
-    local tier
-    for tier = 1, MAX_TALENT_TIERS do
-        local column = select(2, GetTalentTierInfo(tier, 1))
-        if column and column > 0 then
-            local id, name = GetTalentInfo(tier, column, 1)
-
-            if tsNames[name] then
-                tsIds[tsNames[name]] = id
-            end
-
-            talents[tier] = GetTalentLink(id)
-        end
-    end
-
-    profile.talents = talents
-
-    local actions = {}
-    local savedMacros = {}
-
-    local slot
-    for slot = 1, HBP_MAX_ACTION_BUTTONS do
-        local type, id, sub = GetActionInfo(slot)
-        if type == "spell" then
-            if tsIds[id] then
-                actions[slot] = GetTalentLink(tsIds[id])
-            else
-                actions[slot] = GetSpellLink(id)
-            end
-        elseif type == "flyout" then
-            if flyouts[id] then
-                actions[slot] = string.format(
-                        "|cffff0000|Habp:flyout:%d|h[%s]|h|r",
-                        id, flyouts[id]
-                )
-            end
-
-        elseif type == "item" then
-            actions[slot] = select(2, GetItemInfo(id))
-
-        elseif type == "companion" then
-            if sub == "MOUNT" then
-                actions[slot] = GetSpellLink(id)
-            end
-
-        elseif type == "summonpet" then
-            actions[slot] = C_PetJournal.GetBattlePetLink(id)
-
-        elseif type == "summonmount" then
-            if id == 0xFFFFFFF then
-                actions[slot] = GetSpellLink(HBP_RANDOM_MOUNT_SPELL_ID)
-            else
-                actions[slot] = GetSpellLink(({ C_MountJournal.GetMountInfoByID(id) })[2])
-            end
-
-        elseif type == "macro" then
-            if id > 0 then
-                local name, icon, body = GetMacroInfo(id)
-
-                icon = icon or HBP_EMPTY_ICON_TEXTURE_ID
-
-                if id > MAX_ACCOUNT_MACROS then
-                    actions[slot] = string.format(
-                            "|cffff0000|Habp:macro:%s:%s|h[%s]|h|r",
-                            icon, self:encodeLink(body), name
-                    )
-                else
-                    actions[slot] = string.format(
-                            "|cffff0000|Habp:macro:%s:%s:1|h[%s]|h|r",
-                            icon, self:encodeLink(body), name
-                    )
-                end
-
-                savedMacros[id] = true
-            end
-
-        elseif type == "equipmentset" then
-            actions[slot] = string.format(
-                    "|cffff0000|Habp:equip|h[%s]|h|r",
-                    id
-            )
-        end
-    end
-
-    profile.actions = actions
-
-    local macros = {}
-    local allMacros, charMacros = GetNumMacros()
-
-    local index
-    for index = 1, allMacros do
-        local name, icon, body = GetMacroInfo(index)
-
-        icon = icon or HBP_EMPTY_ICON_TEXTURE_ID
-
-        if body and not savedMacros[index] then
-            table.insert(macros, string.format(
-                    "|cffff0000|Habp:macro:%s:%s:1|h[%s]|h|r",
-                    icon, self:encodeLink(body), name
-            ))
-        end
-    end
-
-    for index = MAX_ACCOUNT_MACROS + 1, MAX_ACCOUNT_MACROS + charMacros do
-        local name, icon, body = GetMacroInfo(index)
-
-        icon = icon or HBP_EMPTY_ICON_TEXTURE_ID
-
-        if body and not savedMacros[index] then
-            table.insert(macros, string.format(
-                    "|cffff0000|Habp:macro:%s:%s|h[%s]|h|r",
-                    icon, self:encodeLink(body), name
-            ))
-        end
-    end
-
-    profile.macros = macros
-end
-
 function HotbarProfiles:saveBars(name)
     local list = self.db.profile.list
     local profile = { name = name, default = false }
 
-    self:saveActions(profile)
+    StorageModule:saveActions(profile)
 
     list[name] = profile
 
@@ -326,44 +177,6 @@ function HotbarPopup:createHotbarPopup()
     self:drawHotbarPopup()
 end
 
-function HotbarProfiles:RestorePetJournalFilters(saved)
-    C_PetJournal.SetSearchFilter(saved.text)
-
-    local i
-    for i in table.s2k_values(PET_JOURNAL_FLAGS) do
-        C_PetJournal.SetFilterChecked(i, saved.flag[i])
-    end
-
-    for i = 1, C_PetJournal.GetNumPetSources() do
-        C_PetJournal.SetPetSourceChecked(i, saved.source[i])
-    end
-
-    for i = 1, C_PetJournal.GetNumPetTypes() do
-        C_PetJournal.SetPetTypeFilter(i, saved.type[i])
-    end
-end
-
-function HotbarProfiles:SavePetJournalFilters()
-    local saved = { flag = {}, source = {}, type = {} }
-
-    saved.text = C_PetJournal.GetSearchFilter()
-
-    local i
-    for i in table.s2k_values(PET_JOURNAL_FLAGS) do
-        saved.flag[i] = C_PetJournal.IsFilterChecked(i)
-    end
-
-    for i = 1, C_PetJournal.GetNumPetSources() do
-        saved.source[i] = C_PetJournal.IsPetSourceChecked(i)
-    end
-
-    for i = 1, C_PetJournal.GetNumPetTypes() do
-        saved.type[i] = C_PetJournal.IsPetTypeChecked(i)
-    end
-
-    return saved
-end
-
 log("HotbarProfiles use /hbp to enable the addon")
 
 local hpLDB = LibStub("LibDataBroker-1.1"):NewDataObject("HotbarProfiles", {
@@ -414,34 +227,6 @@ https://github.com/Silencer2K/wow-action-bar-profiles/
 
 --]]
 
-function HotbarProfiles:GetProfiles(filter, case)
-    local list = self.db.profile.list
-    local sorted = {}
-
-    local name, profile
-
-    for name, profile in pairs(list) do
-        if not filter or name == filter or (case and name:lower() == filter:lower()) then
-            profile.name = name
-            table.insert(sorted, profile)
-        end
-    end
-
-    if #sorted > 1 then
-        local class = select(2, UnitClass("player"))
-
-        table.sort(sorted, function(a, b)
-            if a.class == b.class then
-                return a.name < b.name
-            else
-                return a.class == class
-            end
-        end)
-    end
-
-    return unpack(sorted)
-end
-
 function HotbarProfiles:UseProfile(profile, check, cache)
     if type(profile) ~= "table" then
         local list = self.db.profile.list
@@ -452,7 +237,7 @@ function HotbarProfiles:UseProfile(profile, check, cache)
         end
     end
 
-    cache = cache or self:MakeCache()
+    cache = cache or StorageModule:makeCache()
 
     local macros = cache.macros
     local talents = cache.talents
@@ -483,12 +268,6 @@ function HotbarProfiles:UseProfile(profile, check, cache)
     cache.talents = talents
 
     return res.fail, res.total
-end
-
-function HotbarProfiles:DecodeLink(data)
-    return data:gsub("~[0-9A-Fa-f][0-9A-Fa-f]", function(x)
-        return string.char(tonumber(x:sub(2), 16))
-    end)
 end
 
 function HotbarProfiles:RestoreMacros(profile, check, cache, res)
@@ -531,15 +310,15 @@ function HotbarProfiles:RestoreMacros(profile, check, cache, res)
                     local ok
                     total = total + 1
 
-                    body = self:DecodeLink(body)
+                    body = ParsingModule:decodeLink(body)
 
-                    if self:GetFromCache(macros, self:PackMacro(body)) then
+                    if self:GetFromCache(macros, StorageModule:packMacro(body)) then
                         ok = true
 
                     elseif (global and all < MAX_ACCOUNT_MACROS) or (not global and char < MAX_CHARACTER_MACROS) then
                         if check or CreateMacro(name, icon, body, not global) then
                             ok = true
-                            self:UpdateCache(macros, -1, self:PackMacro(body), name)
+                            self:updateCache(macros, -1, StorageModule:packMacro(body), name)
                         end
 
                         if ok then
@@ -573,15 +352,15 @@ function HotbarProfiles:RestoreMacros(profile, check, cache, res)
                     local ok
                     total = total + 1
 
-                    body = self:DecodeLink(body)
+                    body = ParsingModule:decodeLink(body)
 
-                    if self:GetFromCache(macros, self:PackMacro(body)) then
+                    if self:GetFromCache(macros, StorageModule:packMacro(body)) then
                         ok = true
 
                     elseif (global and all < MAX_ACCOUNT_MACROS) or (not global and char < MAX_CHARACTER_MACROS) then
                         if check or CreateMacro(name, icon, body, not global) then
                             ok = true
-                            self:UpdateCache(macros, -1, self:PackMacro(body), name)
+                            self:updateCache(macros, -1, StorageModule:packMacro(body), name)
                         end
 
                         if ok then
@@ -605,7 +384,7 @@ function HotbarProfiles:RestoreMacros(profile, check, cache, res)
 
     if not check then
         -- correct macro ids
-        self:PreloadMacros(macros)
+        StorageModule:preloadMacros(macros)
     end
 
     cache.macros = macros
@@ -647,7 +426,7 @@ function HotbarProfiles:RestoreTalents(profile, check, cache, res)
                             ok = true
 
                             -- hack: update cache
-                            self:UpdateCache(talents, found, id, select(2, GetTalentInfoByID(id)))
+                            self:updateCache(talents, found, id, select(2, GetTalentInfoByID(id)))
 
                             if not check then
                                 LearnTalent(found)
@@ -793,7 +572,7 @@ function HotbarProfiles:RestoreActions(profile, check, cache, res)
                         self:cPrintf(not ok and not check, "L.msg_spell_not_exists", link)
 
                     elseif sub == "macro" then
-                        local found = self:GetFromCache(cache.macros, self:PackMacro(self:DecodeLink(p2)), name, not check and link)
+                        local found = self:GetFromCache(cache.macros, StorageModule:packMacro(ParsingModule:decodeLink(p2)), name, not check and link)
                         if found then
                             ok = true
 
@@ -970,7 +749,7 @@ function HotbarProfiles:RestoreBindings(profile, check, cache, res)
     return 0, 0
 end
 
-function HotbarProfiles:UpdateCache(cache, value, id, name)
+function HotbarProfiles:updateCache(cache, value, id, name)
     cache.id[id] = value
 
     if cache.name and name then
@@ -1042,229 +821,6 @@ function HotbarProfiles:FindItemInCache(cache, id, name, link)
             found = self:GetFromCache(cache, alt)
             if found then
                 return found
-            end
-        end
-    end
-end
-
-function HotbarProfiles:MakeCache()
-    local cache = {
-        talents = { id = {}, name = {} },
-        allTalents = {},
-
-        spells = { id = {}, name = {} },
-        flyouts = { id = {}, name = {} },
-
-        equip = { id = {}, name = {} },
-        bags = { id = {}, name = {} },
-
-        pets = { id = {}, name = {} },
-
-        macros = { id = {}, name = {} },
-
-        petSpells = { id = {}, name = {} },
-    }
-
-    self:PreloadTalents(cache.talents, cache.allTalents)
-    self:PreloadSpecialSpells(cache.spells)
-    self:PreloadSpellbook(cache.spells, cache.flyouts)
-    self:PreloadMountjournal(cache.spells)
-    self:PreloadCombatAllySpells(cache.spells)
-    self:PreloadEquip(cache.equip)
-    self:PreloadBags(cache.bags)
-    self:PreloadPetJournal(cache.pets)
-    self:PreloadMacros(cache.macros)
-    self:PreloadPetSpells(cache.petSpells)
-    return cache
-end
-
-function HotbarProfiles:PreloadSpecialSpells(spells)
-    local level = UnitLevel("player")
-    local class = select(2, UnitClass("player"))
-    local faction = UnitFactionGroup("player")
-    local spec = GetSpecializationInfo(GetSpecialization())
-
-    local id, info
-    for id, info in pairs(HBP_SPECIAL_SPELLS) do
-        if (not info.level or level >= info.level) and
-                (not info.class or class == info.class) and
-                (not info.faction or faction == info.faction) and
-                (not info.spec or spec == info.spec)
-        then
-            self:UpdateCache(spells, id, id)
-            if info.altSpellIds then
-                local idx, alt
-                for idx, alt in pairs(info.altSpellIds) do
-                    self:UpdateCache(spells, id, alt)
-                end
-            end
-        end
-    end
-end
-
-function HotbarProfiles:PreloadSpellbook(spells, flyouts)
-    local tabs = {}
-    local book
-    for book = 1, GetNumSpellTabs() do
-        local offset, count, _, spec = select(3, GetSpellTabInfo(book))
-
-        if spec == 0 then
-            table.insert(tabs, { type = BOOKTYPE_SPELL, offset = offset, count = count })
-        end
-    end
-
-    local prof
-    for prof in table.s2k_values({ GetProfessions() }) do
-        if prof then
-            local count, offset = select(5, GetProfessionInfo(prof))
-
-            table.insert(tabs, { type = BOOKTYPE_PROFESSION, offset = offset, count = count })
-        end
-    end
-    local tab
-    for tab in table.s2k_values(tabs) do
-        local index
-        for index = tab.offset + 1, tab.offset + tab.count do
-            local type, id = GetSpellBookItemInfo(index, tab.type)
-            local name = GetSpellBookItemName(index, tab.type)
-
-            if type == "FLYOUT" then
-                self:UpdateCache(flyouts, index, id, name)
-
-            elseif type == "SPELL" then
-                self:UpdateCache(spells, id, id, name)
-            end
-        end
-    end
-end
-
-function HotbarProfiles:PreloadMountjournal(mounts)
-    local all = C_MountJournal.GetMountIDs()
-    local faction = (UnitFactionGroup("player") == "Alliance" and 1) or 0
-
-    local idx, mount
-    for idx, mount in pairs(all) do
-        local name, id, required, collected = table.s2k_select({ C_MountJournal.GetMountInfoByID(mount) }, 1, 2, 9, 11)
-
-        if collected and (not required or required == faction) then
-            self:UpdateCache(mounts, id, id, name)
-        end
-    end
-end
-
-function HotbarProfiles:PreloadCombatAllySpells(spells)
-    local idx, follower
-    for idx, follower in pairs(C_Garrison.GetFollowers() or {}) do
-        if follower.garrFollowerID then
-            local idx, id
-            for idx, id in pairs({ C_Garrison.GetFollowerZoneSupportAbilities(follower.garrFollowerID) }) do
-                local name = GetSpellInfo(id)
-                self:UpdateCache(spells, 211390, id, name)
-            end
-        end
-    end
-end
-
-function HotbarProfiles:PreloadTalents(talents, all)
-    local tier
-    for tier = 1, MAX_TALENT_TIERS do
-        all[tier] = all[tier] or { id = {}, name = {} }
-
-        if GetTalentTierInfo(tier, 1) then
-            local column
-            for column = 1, NUM_TALENT_COLUMNS do
-                local id, name, _, selected = GetTalentInfo(tier, column, 1)
-
-                if selected then
-                    self:UpdateCache(talents, id, id, name)
-                end
-
-                self:UpdateCache(all[tier], id, id, name)
-            end
-        end
-    end
-end
-
-function HotbarProfiles:PreloadEquip(equip)
-    local slot
-    for slot = INVSLOT_FIRST_EQUIPPED, INVSLOT_LAST_EQUIPPED do
-        local id = GetInventoryItemID("player", slot)
-        if id then
-            self:UpdateCache(equip, slot, id, GetItemInfo(id))
-        end
-    end
-end
-
-function HotbarProfiles:PreloadBags(bags)
-    local bag
-    for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
-        local index
-        for index = 1, GetContainerNumSlots(bag) do
-            local id = GetContainerItemID(bag, index)
-            if id then
-                self:UpdateCache(bags, { bag, index }, id, GetItemInfo(id))
-            end
-        end
-    end
-end
-
-function HotbarProfiles:PreloadPetJournal(pets)
-    local saved = self:SavePetJournalFilters()
-
-    C_PetJournal.ClearSearchFilter()
-
-    C_PetJournal.SetFilterChecked(LE_PET_JOURNAL_FILTER_COLLECTED, true)
-    C_PetJournal.SetFilterChecked(LE_PET_JOURNAL_FILTER_NOT_COLLECTED, false)
-
-    C_PetJournal.SetAllPetSourcesChecked(true)
-    C_PetJournal.SetAllPetTypesChecked(true)
-
-    local index
-    for index = 1, C_PetJournal:GetNumPets() do
-        local id, species = C_PetJournal.GetPetInfoByIndex(index)
-        self:UpdateCache(pets, id, id, species)
-    end
-
-    self:RestorePetJournalFilters(saved)
-end
-
-function HotbarProfiles:PackMacro(macro)
-    return macro:gsub("^%s+", ""):gsub("%s+\n", "\n"):gsub("\n%s+", "\n"):gsub("%s+$", ""):sub(1)
-end
-
-function HotbarProfiles:PreloadMacros(macros)
-    local all, char = GetNumMacros()
-
-    local index
-    for index = 1, all do
-        local name, _, body = GetMacroInfo(index)
-        if body then
-            self:UpdateCache(macros, index, HotbarProfiles:PackMacro(body), name)
-        end
-    end
-
-    for index = MAX_ACCOUNT_MACROS + 1, MAX_ACCOUNT_MACROS + char do
-        local name, _, body = GetMacroInfo(index)
-        if body then
-            self:UpdateCache(macros, index, HotbarProfiles:PackMacro(body), name)
-        end
-    end
-end
-
-function HotbarProfiles:PreloadPetSpells(spells)
-    if HasPetSpells() then
-        local index
-        for index = 1, HasPetSpells() do
-            local id = select(2, GetSpellBookItemInfo(index, BOOKTYPE_PET))
-            local name = GetSpellBookItemName(index, BOOKTYPE_PET)
-            local token = bit.band(id, 0x80000000) == 0 and bit.rshift(id, 24) ~= 1
-
-            id = bit.band(id, 0xFFFFFF)
-
-            if token then
-                self:UpdateCache(spells, index, -1, name)
-            else
-                self:UpdateCache(spells, index, id, name)
             end
         end
     end
